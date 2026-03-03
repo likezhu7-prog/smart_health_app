@@ -26,6 +26,16 @@ dependencies:
 
 
 
+  # Gemini AI
+  google_generative_ai: ^0.4.6
+
+  # PDF export
+  pdf: ^3.10.8
+  printing: ^5.12.0
+
+  # Local notifications
+  flutter_local_notifications: ^17.0.0
+
   # Optional background sync (can be added later)
   #workmanager: 0.4.1
 

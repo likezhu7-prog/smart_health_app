@@ -1,0 +1,19 @@
+{
+  "" : {
+    "diagnostics" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/flutter_local_notifications-primary.dia",
+    "emit-module-dependencies" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/flutter_local_notifications-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/flutter_local_notifications-primary-emit-module.dia",
+    "pch" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/flutter_local_notifications-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/flutter_local_notifications-primary.swiftdeps"
+  },
+  "/Users/sakshigartan/.pub-cache/hosted/pub.dev/flutter_local_notifications-17.2.4/macos/Classes/FlutterLocalNotificationsPlugin.swift" : {
+    "const-values" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/FlutterLocalNotificationsPlugin.swiftconstvalues",
+    "dependencies" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/FlutterLocalNotificationsPlugin.d",
+    "diagnostics" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/FlutterLocalNotificationsPlugin.dia",
+    "index-unit-output-path" : "/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/FlutterLocalNotificationsPlugin.o",
+    "llvm-bc" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/FlutterLocalNotificationsPlugin.bc",
+    "object" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/FlutterLocalNotificationsPlugin.o",
+    "swift-dependencies" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/FlutterLocalNotificationsPlugin.swiftdeps",
+    "swiftmodule" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/flutter_local_notifications.build/Objects-normal/arm64/FlutterLocalNotificationsPlugin~partial.swiftmodule"
+  }
+}

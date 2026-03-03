@@ -1,0 +1,29 @@
+{
+  "" : {
+    "diagnostics" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/printing-primary.dia",
+    "emit-module-dependencies" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/printing-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/printing-primary-emit-module.dia",
+    "pch" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/printing-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/printing-primary.swiftdeps"
+  },
+  "/Users/sakshigartan/.pub-cache/hosted/pub.dev/printing-5.14.2/macos/Classes/PrintJob.swift" : {
+    "const-values" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintJob.swiftconstvalues",
+    "dependencies" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintJob.d",
+    "diagnostics" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintJob.dia",
+    "index-unit-output-path" : "/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintJob.o",
+    "llvm-bc" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintJob.bc",
+    "object" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintJob.o",
+    "swift-dependencies" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintJob.swiftdeps",
+    "swiftmodule" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintJob~partial.swiftmodule"
+  },
+  "/Users/sakshigartan/.pub-cache/hosted/pub.dev/printing-5.14.2/macos/Classes/PrintingPlugin.swift" : {
+    "const-values" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintingPlugin-eec358f56a0c404571da2bc02616283d.swiftconstvalues",
+    "dependencies" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintingPlugin-eec358f56a0c404571da2bc02616283d.d",
+    "diagnostics" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintingPlugin-eec358f56a0c404571da2bc02616283d.dia",
+    "index-unit-output-path" : "/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintingPlugin-eec358f56a0c404571da2bc02616283d.o",
+    "llvm-bc" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintingPlugin-eec358f56a0c404571da2bc02616283d.bc",
+    "object" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintingPlugin-eec358f56a0c404571da2bc02616283d.o",
+    "swift-dependencies" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintingPlugin-eec358f56a0c404571da2bc02616283d.swiftdeps",
+    "swiftmodule" : "/Users/sakshigartan/smart_health_app_new/build/macos/Build/Intermediates.noindex/Pods.build/Debug/printing.build/Objects-normal/arm64/PrintingPlugin-eec358f56a0c404571da2bc02616283d~partial.swiftmodule"
+  }
+}
