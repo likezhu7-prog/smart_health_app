@@ -1,0 +1,45 @@
+# Flutter / Dart build artifacts
+build/
+.dart_tool/
+*.dill
+
+# Flutter generated files (auto-created on build)
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Pub cache
+.pub-cache/
+.pub/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# macOS
+macos/Pods/
+macos/.symlinks/
+
+# Android
+android/.gradle/
+android/captures/
+android/local.properties
+android/GeneratedPluginRegistrant.java
+
+# Secrets / environment
+.env
+*.env
+lib/config/secrets.dart
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# macOS system files
+.DS_Store
+
+# Test coverage
+coverage/
+.env
