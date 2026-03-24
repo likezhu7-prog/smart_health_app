@@ -31,6 +31,7 @@ android/GeneratedPluginRegistrant.java
 .env
 *.env
 lib/config/secrets.dart
+lib/config/api_config.dart
 
 # IDE
 .idea/
