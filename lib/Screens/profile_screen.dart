@@ -1,3 +1,4 @@
+import '../Services/e_hospital_service.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
@@ -16,8 +17,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _user;
   String? _errorMsg;
 
-  static const String _baseUrl =
-      "https://aetab8pjmb.us-east-1.awsapprunner.com/table";
 
   @override
   void initState() {
@@ -39,7 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     try {
-      final res = await http.get(Uri.parse("$_baseUrl/users"));
+      final res = await http.get(Uri.parse("${EHospitalService.baseUrl}/table/users"));
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
         final List<dynamic> data = decoded is Map ? (decoded['data'] ?? []) : decoded;

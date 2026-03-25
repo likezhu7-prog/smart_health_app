@@ -1,3 +1,4 @@
+import '../Services/e_hospital_service.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
@@ -13,6 +14,7 @@ class HealthGoalsScreen extends StatefulWidget {
 
 class _HealthGoalsScreenState extends State<HealthGoalsScreen> {
   bool _loading = true;
+  int? _patientId;
 
   // Goals
   int _goalSteps = 8000;
@@ -24,8 +26,6 @@ class _HealthGoalsScreenState extends State<HealthGoalsScreen> {
   double _actualSleep = 0;
   int _actualCalories = 0;
 
-  static const String _baseUrl =
-      "https://aetab8pjmb.us-east-1.awsapprunner.com/table";
 
   @override
   void initState() {
@@ -35,23 +35,20 @@ class _HealthGoalsScreenState extends State<HealthGoalsScreen> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    _goalSteps = prefs.getInt("goal_steps") ?? 8000;
-    _goalSleep = prefs.getDouble("goal_sleep") ?? 8.0;
-    _goalCalories = prefs.getInt("goal_calories") ?? 500;
-
     final rawId = prefs.get("patient_id");
-    if (rawId != null) {
-      final patientId = int.tryParse(rawId.toString());
-      if (patientId != null) {
-        await _fetchActuals(patientId);
-      }
-    }
+    _patientId = int.tryParse(rawId?.toString() ?? '');
+
+    _goalSteps = prefs.getInt("goal_steps_$_patientId") ?? 8000;
+    _goalSleep = prefs.getDouble("goal_sleep_$_patientId") ?? 8.0;
+    _goalCalories = prefs.getInt("goal_calories_$_patientId") ?? 500;
+
+    if (_patientId != null) await _fetchActuals(_patientId!);
     if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _fetchActuals(int patientId) async {
     try {
-      final res = await http.get(Uri.parse("$_baseUrl/wearable_vitals"));
+      final res = await http.get(Uri.parse("${EHospitalService.baseUrl}/table/wearable_vitals"));
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
         final List<dynamic> raw = decoded is Map ? (decoded['data'] ?? []) : decoded;
@@ -82,10 +79,11 @@ class _HealthGoalsScreenState extends State<HealthGoalsScreen> {
   }
 
   Future<void> _saveGoals() async {
+    if (_patientId == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt("goal_steps", _goalSteps);
-    await prefs.setDouble("goal_sleep", _goalSleep);
-    await prefs.setInt("goal_calories", _goalCalories);
+    await prefs.setInt("goal_steps_$_patientId", _goalSteps);
+    await prefs.setDouble("goal_sleep_$_patientId", _goalSleep);
+    await prefs.setInt("goal_calories_$_patientId", _goalCalories);
   }
 
   void _editGoal({

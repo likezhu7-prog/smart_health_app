@@ -20,7 +20,6 @@ class _HealthAssistantScreenState extends State<HealthAssistantScreen> {
   final List<_ChatMessage> _messages = [];
   bool _isLoading = false;
 
-  static const String _baseUrl = "https://aetab8pjmb.us-east-1.awsapprunner.com/table";
 
   Future<String> _buildSystemPrompt(int patientId) async {
     final allWearable = await EHospitalService.fetchVitals();
@@ -32,7 +31,7 @@ class _HealthAssistantScreenState extends State<HealthAssistantScreen> {
 
     Future<List<dynamic>> fetchTable(String table) async {
       try {
-        final res = await http.get(Uri.parse("$_baseUrl/$table?patient_id=$patientId"));
+        final res = await http.get(Uri.parse("${EHospitalService.baseUrl}/table/$table?patient_id=$patientId"));
         if (res.statusCode != 200) return [];
         final body = jsonDecode(res.body);
         final raw = body["data"] as List<dynamic>? ?? [];
@@ -106,11 +105,13 @@ Use this data to provide personalized, accurate health insights. Always:
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final patientId = prefs.getInt("patient_id") ?? 20;
+      final rawId = prefs.get("patient_id");
+      final patientId = int.tryParse(rawId?.toString() ?? '') ?? 0;
+      if (patientId == 0) return;
       final systemPrompt = await _buildSystemPrompt(patientId);
 
       final model = GenerativeModel(
-        model: 'gemini-2.0-flash-lite',
+        model: ApiConfig.geminiModel,
         apiKey: ApiConfig.geminiApiKey,
         systemInstruction: Content.system(systemPrompt),
       );

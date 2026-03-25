@@ -5,14 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'e_hospital_service.dart';
+import '../config/api_config.dart';
 
 class FitbitService {
-  static const String clientId = '23TFWH';
-  static const String clientSecret = '1bdb7345efec20aff5a594f88c29ba63';
+  static String get clientId     => ApiConfig.fitbitClientId;
+  static String get clientSecret => ApiConfig.fitbitClientSecret;
   static const String authUrl = 'https://www.fitbit.com/oauth2/authorize';
   static const String tokenUrl = 'https://api.fitbit.com/oauth2/token';
-  static const String hospitalApi =
-      'https://aetab8pjmb.us-east-1.awsapprunner.com/table/vitals_history';
+  static String get hospitalApi =>
+      '${EHospitalService.baseUrl}/table/vitals_history';
 
   static const _kAccess = 'fitbit_access_token';
   static const _kRefresh = 'fitbit_refresh_token';

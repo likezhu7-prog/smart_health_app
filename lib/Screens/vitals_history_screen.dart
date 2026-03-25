@@ -1,3 +1,4 @@
+import '../Services/e_hospital_service.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
@@ -34,7 +35,6 @@ class _VitalsHistoryScreenState extends State<VitalsHistoryScreen> {
   List<dynamic> strokeData = [];
   List<dynamic> diagnosisList = [];
 
-  static const String _baseUrl = "https://aetab8pjmb.us-east-1.awsapprunner.com/table";
 
   @override
   void initState() {
@@ -44,14 +44,15 @@ class _VitalsHistoryScreenState extends State<VitalsHistoryScreen> {
 
   Future<void> _loadHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    final patientId = prefs.getInt("patient_id");
+    final rawId = prefs.get("patient_id");
+    final patientId = int.tryParse(rawId?.toString() ?? '');
 
     if (patientId == null) return;
 
     debugPrint("[VitalsHistory] Loading history for patient_id=$patientId");
 
     final url = Uri.parse(
-      "https://aetab8pjmb.us-east-1.awsapprunner.com/table/vitals_history?patient_id=$patientId",
+      "${EHospitalService.baseUrl}/table/vitals_history?patient_id=$patientId",
     );
 
     final res = await http.get(url);
@@ -100,7 +101,7 @@ class _VitalsHistoryScreenState extends State<VitalsHistoryScreen> {
 
   Future<List<dynamic>> _fetchTableForPatient(String table, int patientId) async {
     try {
-      final res = await http.get(Uri.parse("$_baseUrl/$table?patient_id=$patientId"));
+      final res = await http.get(Uri.parse("${EHospitalService.baseUrl}/table/$table?patient_id=$patientId"));
       if (res.statusCode != 200) return [];
       final body = jsonDecode(res.body);
       final raw = body["data"] as List<dynamic>? ?? [];

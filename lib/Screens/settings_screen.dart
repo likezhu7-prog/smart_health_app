@@ -13,6 +13,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = false;
   String _email = "";
+  int? _patientId;
   final FlutterLocalNotificationsPlugin _notifPlugin =
       FlutterLocalNotificationsPlugin();
 
@@ -25,9 +26,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    final rawId = prefs.get("patient_id");
+    _patientId = int.tryParse(rawId?.toString() ?? '');
     if (mounted) {
       setState(() {
-        _notificationsEnabled = prefs.getBool("notifications_enabled") ?? false;
+        _notificationsEnabled = prefs.getBool("notifications_enabled_$_patientId") ?? false;
         _email = prefs.getString("patient_email") ?? "";
       });
     }
@@ -42,7 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _toggleNotifications(bool val) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool("notifications_enabled", val);
+    await prefs.setBool("notifications_enabled_$_patientId", val);
     setState(() => _notificationsEnabled = val);
 
     if (val) {

@@ -22,7 +22,6 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
   String? _errorMsg;
   List<_PatientDevice> _patients = [];
 
-  static const String _baseUrl = "https://aetab8pjmb.us-east-1.awsapprunner.com/table";
 
   @override
   void initState() {
@@ -34,8 +33,8 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
     setState(() { _loading = true; _errorMsg = null; });
     try {
       final results = await Future.wait([
-        http.get(Uri.parse("$_baseUrl/users")),
-        http.get(Uri.parse("$_baseUrl/wearable_vitals")),
+        http.get(Uri.parse("${EHospitalService.baseUrl}/table/users")),
+        http.get(Uri.parse("${EHospitalService.baseUrl}/table/wearable_vitals")),
       ]);
 
       if (results[0].statusCode != 200) {

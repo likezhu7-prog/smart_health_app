@@ -36,8 +36,6 @@ class _HealthInsightsScreenState extends State<HealthInsightsScreen> {
   List<Map<String, dynamic>> _anomalyAlerts = [];   // rule-based anomaly table
   List<Map<String, dynamic>> _allPatientsStats = []; // multi-patient comparison
 
-  static const String _baseUrl =
-      "https://aetab8pjmb.us-east-1.awsapprunner.com/table";
 
   @override
   void initState() {
@@ -130,7 +128,7 @@ class _HealthInsightsScreenState extends State<HealthInsightsScreen> {
   Future<List<dynamic>> _fetchTableForPatient(String table, int patientId) async {
     try {
       final res =
-          await http.get(Uri.parse("$_baseUrl/$table?patient_id=$patientId"));
+          await http.get(Uri.parse("${EHospitalService.baseUrl}/table/$table?patient_id=$patientId"));
       if (res.statusCode != 200) return [];
       final body = jsonDecode(res.body);
       final raw = body["data"] as List<dynamic>? ?? [];

@@ -12,6 +12,7 @@ class SymptomLoggerScreen extends StatefulWidget {
 
 class _SymptomLoggerScreenState extends State<SymptomLoggerScreen> {
   List<Map<String, dynamic>> _symptoms = [];
+  int? _patientId;
 
   final _nameCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
@@ -32,7 +33,11 @@ class _SymptomLoggerScreenState extends State<SymptomLoggerScreen> {
 
   Future<void> _loadSymptoms() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString("symptoms") ?? "[]";
+    final rawId = prefs.get("patient_id");
+    _patientId = int.tryParse(rawId?.toString() ?? '');
+    if (_patientId == null) return;
+
+    final raw = prefs.getString("symptoms_$_patientId") ?? "[]";
     final list = (jsonDecode(raw) as List)
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
@@ -41,8 +46,9 @@ class _SymptomLoggerScreenState extends State<SymptomLoggerScreen> {
   }
 
   Future<void> _saveSymptoms() async {
+    if (_patientId == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("symptoms", jsonEncode(_symptoms));
+    await prefs.setString("symptoms_$_patientId", jsonEncode(_symptoms));
   }
 
   Future<void> _addSymptom() async {

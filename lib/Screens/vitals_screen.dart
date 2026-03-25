@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
@@ -5,7 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:health/health.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 import '../services/e_hospital_service.dart';
+import '../config/api_config.dart';
 import '../ui/app_theme.dart';
 
 class VitalsScreen extends StatefulWidget {
@@ -23,7 +26,9 @@ class _VitalsScreenState extends State<VitalsScreen> {
   List<String> timeLabels = [];
   bool isLoading = true;
   int selectedIndex = 0;
-  String currentPatientId = "20";
+  String currentPatientId = "";
+  List<dynamic> _rawFilteredData = [];
+  int _rangeDays = 7; // 7, 14, 30, 0 = All
   String? _ecgResult;
   double _liveBaselineHR = 72.0;
   String _liveBaselineBP = "120/80";
@@ -32,7 +37,11 @@ class _VitalsScreenState extends State<VitalsScreen> {
   // Apple Health sync state
   bool _syncingAppleHealth = false;
   String? _lastSyncStatus;
-  int _wearableRecordCount = 0; // total records in DB for this patient
+  int _wearableRecordCount = 0;
+
+  // Gemini AI summaries — keyed by tab index (0=Steps,1=Cal,2=HR,3=Sleep)
+  final Map<int, String?> _aiSummaries = {};
+  bool _aiGenerating = false;
 
   String get _clinicalECG => _ecgResult ?? "Unknown";
 
@@ -53,13 +62,14 @@ class _VitalsScreenState extends State<VitalsScreen> {
     setState(() => isLoading = true);
 
     final prefs = await SharedPreferences.getInstance();
-    final int? loggedId = prefs.getInt("patient_id");
-    final String searchId = (loggedId ?? 20).toString();
+    // Use prefs.get() to handle patient_id stored as either int or String
+    final Object? rawId = prefs.get("patient_id");
+    final String searchId = rawId?.toString() ?? "";
 
     String? ecgResult;
     try {
       final ecgRes = await http.get(Uri.parse(
-          "https://aetab8pjmb.us-east-1.awsapprunner.com/table/ecg"));
+          "${EHospitalService.baseUrl}/table/ecg"));
       if (ecgRes.statusCode == 200) {
         final ecgList = (jsonDecode(ecgRes.body)["data"] as List<dynamic>? ?? [])
             .where((e) => e["patient_id"].toString() == searchId)
@@ -75,7 +85,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
     String liveBP = "120/80";
     try {
       final vhRes = await http.get(Uri.parse(
-          "https://aetab8pjmb.us-east-1.awsapprunner.com/table/vitals_history?patient_id=$searchId"));
+          "${EHospitalService.baseUrl}/table/vitals_history?patient_id=$searchId"));
       if (vhRes.statusCode == 200) {
         final vhList = (jsonDecode(vhRes.body)["data"] as List<dynamic>? ?? [])
             .where((e) => e["patient_id"].toString() == searchId)
@@ -97,12 +107,39 @@ class _VitalsScreenState extends State<VitalsScreen> {
         .toList();
     filteredData.sort((a, b) => a['timestamp'].compareTo(b['timestamp']));
 
+    if (mounted) {
+      setState(() {
+        currentPatientId = searchId;
+        _ecgResult = ecgResult;
+        _liveBaselineHR = liveHR;
+        _liveBaselineBP = liveBP;
+        _rawFilteredData = filteredData;
+        isLoading = false;
+      });
+      _applyRange(triggerAI: true);
+    }
+  }
+
+  void _applyRange({bool triggerAI = false}) {
+    final now = DateTime.now();
+    final cutoff = _rangeDays > 0
+        ? now.subtract(Duration(days: _rangeDays))
+        : DateTime(2000);
+
+    final ranged = _rawFilteredData.where((d) {
+      try {
+        return DateTime.parse(d['timestamp'].toString()).isAfter(cutoff);
+      } catch (_) {
+        return true;
+      }
+    }).toList();
+
     List<FlSpot> sSpots = [], cSpots = [], hrSpots = [], slSpots = [];
     List<String> labels = [];
     bool hasZero = false;
 
-    for (int i = 0; i < filteredData.length; i++) {
-      final d = filteredData[i];
+    for (int i = 0; i < ranged.length; i++) {
+      final d = ranged[i];
       final s = double.tryParse(d['steps'].toString()) ?? 0.0;
       final c = double.tryParse(d['calories'].toString()) ?? 0.0;
       final hr = double.tryParse(d['heart_rate'].toString()) ?? 0.0;
@@ -117,20 +154,72 @@ class _VitalsScreenState extends State<VitalsScreen> {
 
     if (mounted) {
       setState(() {
-        currentPatientId = searchId;
-        _ecgResult = ecgResult;
-        _liveBaselineHR = liveHR;
-        _liveBaselineBP = liveBP;
-        _hasZeroHR = hasZero;
         stepSpots = sSpots;
         calorieSpots = cSpots;
         heartRateSpots = hrSpots;
         sleepSpots = slSpots;
         timeLabels = labels;
-        _wearableRecordCount = filteredData.length;
-        isLoading = false;
+        _hasZeroHR = hasZero;
+        _wearableRecordCount = ranged.length;
+        if (triggerAI) { _aiSummaries.clear(); _aiGenerating = false; }
       });
+      if (triggerAI) _generateAllSummaries();
     }
+  }
+
+  // ── Gemini AI summaries ──────────────────────────────────────────────────
+  Future<void> _generateAllSummaries() async {
+    if (mounted) setState(() { _aiGenerating = true; _aiSummaries.clear(); });
+
+    const tabNames     = ["Steps", "Active Calories", "Heart Rate", "Sleep"];
+    const units        = ["steps", "kcal", "bpm", "hrs"];
+    const normalRanges = ["5,000–15,000 steps/day", "300–600 kcal/day",
+                          "60–100 bpm", "7–9 hrs/night"];
+
+    final allSpots = [stepSpots, calorieSpots, heartRateSpots, sleepSpots];
+
+    final model = GenerativeModel(
+      model: ApiConfig.geminiModel,
+      apiKey: ApiConfig.geminiApiKey,
+    );
+
+    for (int i = 0; i < 4; i++) {
+      final spots   = allSpots[i];
+      final nonZero = spots.map((s) => s.y).where((v) => v > 0).toList();
+      final latest  = spots.isNotEmpty ? spots.last.y : 0.0;
+      final avg     = nonZero.isNotEmpty
+          ? nonZero.reduce((a, b) => a + b) / nonZero.length
+          : 0.0;
+      final max     = nonZero.isNotEmpty
+          ? nonZero.reduce((a, b) => a > b ? a : b)
+          : 0.0;
+      final zeroCount = spots.length - nonZero.length;
+      final hrNote    = i == 2 && _liveBaselineHR > 0
+          ? "\n- Clinical baseline HR from hospital records: ${_liveBaselineHR.toInt()} bpm"
+          : "";
+
+      final prompt = nonZero.isEmpty
+          ? "A patient has no ${tabNames[i]} data from their wearable device. "
+            "Write 1 short plain English sentence for a health dashboard telling them to sync their device."
+          : "Patient wearable data — ${tabNames[i]}:\n"
+            "- Latest reading: ${latest.toStringAsFixed(1)} ${units[i]}\n"
+            "- Average (non-zero readings only): ${avg.toStringAsFixed(1)} ${units[i]}\n"
+            "- Peak recorded: ${max.toStringAsFixed(1)} ${units[i]}\n"
+            "- Readings with no data: $zeroCount out of ${spots.length} total$hrNote\n"
+            "- Healthy range: ${normalRanges[i]}\n\n"
+            "Write 2–3 plain English sentences for a patient health dashboard. "
+            "Be specific with the numbers. Note if the value is healthy, improving, or needs attention. "
+            "Do not suggest specific medications. Keep it under 70 words.";
+
+      try {
+        final response = await model.generateContent([Content.text(prompt)]);
+        if (mounted) setState(() => _aiSummaries[i] = response.text?.trim() ?? "");
+      } catch (_) {
+        if (mounted) setState(() => _aiSummaries[i] = "Unable to generate insight for ${tabNames[i]}.");
+      }
+    }
+
+    if (mounted) setState(() => _aiGenerating = false);
   }
 
   // ── Apple Watch / Apple Health Sync ─────────────────────────────────────
@@ -570,11 +659,12 @@ class _VitalsScreenState extends State<VitalsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildPipelineCard(),
                   _buildSyncBanner(),
                   _buildClinicalCard(),
                   const SizedBox(height: 24),
                   _buildTabRow(),
+                  const SizedBox(height: 12),
+                  _buildRangeFilter(),
                   const SizedBox(height: 16),
                   _buildChartCard(),
                   const SizedBox(height: 16),
@@ -665,6 +755,52 @@ class _VitalsScreenState extends State<VitalsScreen> {
 
   Widget _divider() => Container(width: 1, height: 50, color: Colors.white.withOpacity(0.2));
 
+  // ── Time range filter ────────────────────────────────────────────────────
+  Widget _buildRangeFilter() {
+    const options = [
+      (label: "7D",  days: 7),
+      (label: "14D", days: 14),
+      (label: "30D", days: 30),
+      (label: "All", days: 0),
+    ];
+    return Row(
+      children: options.map((o) {
+        final selected = _rangeDays == o.days;
+        return GestureDetector(
+          onTap: () {
+            if (_rangeDays == o.days) return;
+            setState(() { _rangeDays = o.days; _aiSummaries.clear(); });
+            _applyRange(triggerAI: true);
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.primary : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: (selected ? AppColors.primary : Colors.black).withOpacity(0.1),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              o.label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: selected ? Colors.white : AppColors.textMuted,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   // ── Custom pill tab row ──────────────────────────────────────────────────
   Widget _buildTabRow() {
     return SingleChildScrollView(
@@ -714,46 +850,155 @@ class _VitalsScreenState extends State<VitalsScreen> {
 
   // ── Chart card ───────────────────────────────────────────────────────────
   Widget _buildChartCard() {
-    const maxYs = [5000.0, 400.0, 120.0, 12.0];
-    const units = ["steps", "kcal", "bpm", "hrs"];
-    final tab = _tabs[selectedIndex];
-    final spots = [stepSpots, calorieSpots, heartRateSpots, sleepSpots][selectedIndex];
+    // ── Per-metric config ────────────────────────────────────────────────────
+    const units        = ["steps",   "kcal",    "bpm",     "hrs"];
+    const maxYs        = [20000.0,   800.0,     160.0,     12.0];
+    const normalMins   = [5000.0,    300.0,     60.0,      7.0];
+    const normalMaxs   = [15000.0,   600.0,     100.0,     9.0];
+    const descriptions = [
+      "Steps walked today. A healthy goal is 10,000 steps per day.",
+      "Active calories burned. Healthy range: 300–600 kcal/day.",
+      "Heart rate in beats per minute. Normal resting: 60–100 bpm.",
+      "Hours of sleep recorded. Recommended: 7–9 hours per night.",
+    ];
+    const dataNotes = [
+      "",
+      "",
+      "Green dashed line = clinical baseline HR from hospital records.",
+      "0 hrs means the wearable did not record sleep for that period.",
+    ];
+
+    final tab        = _tabs[selectedIndex];
+    final spots      = [stepSpots, calorieSpots, heartRateSpots, sleepSpots][selectedIndex];
+    final unit       = units[selectedIndex];
+    final normalMin  = normalMins[selectedIndex];
+    final normalMax  = normalMaxs[selectedIndex];
+
+    // Stats — exclude 0s so averages aren't skewed by missing data
+    final nonZero = spots.map((s) => s.y).where((v) => v > 0).toList();
+    final latest  = spots.isNotEmpty ? spots.last.y  : 0.0;
+    final avg     = nonZero.isNotEmpty ? nonZero.reduce((a, b) => a + b) / nonZero.length : 0.0;
+    final minVal  = nonZero.isNotEmpty ? nonZero.reduce((a, b) => a < b ? a : b) : 0.0;
+    final maxVal  = nonZero.isNotEmpty ? nonZero.reduce((a, b) => a > b ? a : b) : 0.0;
+
+    String fmt(double v) => v >= 1000
+        ? "${(v / 1000).toStringAsFixed(1)}k"
+        : v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
+
+    // Status based on latest reading
+    String statusLabel;
+    Color  statusColor;
+    if (latest <= 0) {
+      statusLabel = "No Data";  statusColor = Colors.grey;
+    } else if (latest < normalMin) {
+      statusLabel = "Low";      statusColor = Colors.orange;
+    } else if (latest > normalMax) {
+      statusLabel = "High";     statusColor = Colors.red;
+    } else {
+      statusLabel = "Normal";   statusColor = Colors.green;
+    }
+
+    final latestLabel = timeLabels.isNotEmpty ? timeLabels.last : "";
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
+          BoxShadow(color: AppColors.primary.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
+
+          // ── Header ────────────────────────────────────────────────────
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(color: tab.color.withOpacity(0.12), shape: BoxShape.circle),
               child: Icon(tab.icon, color: tab.color, size: 18),
             ),
             const SizedBox(width: 10),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text("${tab.label} Trend",
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textDark)),
-              Text(units[selectedIndex],
-                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text("${tab.label} Trend",
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                const SizedBox(height: 2),
+                Text(descriptions[selectedIndex],
+                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              ]),
+            ),
+            const SizedBox(width: 8),
+            // Latest value + status badge
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(
+                latest > 0 ? "${fmt(latest)} $unit" : "— $unit",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: tab.color),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(statusLabel,
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor)),
+              ),
+              const SizedBox(height: 2),
+              if (latestLabel.isNotEmpty)
+                Text(latestLabel, style: const TextStyle(fontSize: 9, color: AppColors.textMuted)),
             ]),
           ]),
-          const SizedBox(height: 16),
+
+          const SizedBox(height: 6),
+
+          // ── Normal range legend ───────────────────────────────────────
+          Row(children: [
+            Container(width: 14, height: 3,
+                decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 5),
+            Text(
+              "Normal range: ${fmt(normalMin)}–${fmt(normalMax)} $unit",
+              style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+            ),
+          ]),
+
+          const SizedBox(height: 12),
+
+          // ── Chart ─────────────────────────────────────────────────────
           SizedBox(
             height: 260,
             child: LineChart(LineChartData(
               maxY: maxYs[selectedIndex],
+              minY: 0,
+              rangeAnnotations: RangeAnnotations(
+                horizontalRangeAnnotations: [
+                  HorizontalRangeAnnotation(
+                    y1: normalMin,
+                    y2: normalMax,
+                    color: Colors.green.withOpacity(0.07),
+                  ),
+                ],
+              ),
+              extraLinesData: ExtraLinesData(horizontalLines: [
+                HorizontalLine(
+                  y: normalMin,
+                  color: Colors.green.withOpacity(0.35),
+                  strokeWidth: 1,
+                  dashArray: [4, 4],
+                ),
+                HorizontalLine(
+                  y: normalMax,
+                  color: Colors.green.withOpacity(0.35),
+                  strokeWidth: 1,
+                  dashArray: [4, 4],
+                ),
+              ]),
               lineBarsData: [
                 if (selectedIndex == 2)
                   LineChartBarData(
@@ -782,22 +1027,134 @@ class _VitalsScreenState extends State<VitalsScreen> {
                 getDrawingHorizontalLine: (_) => FlLine(color: Colors.grey.shade100, strokeWidth: 1),
               ),
               borderData: FlBorderData(show: false),
+              clipData: const FlClipData.all(),
             )),
           ),
-          if (selectedIndex == 2) ...[
+
+          // ── Stats row ─────────────────────────────────────────────────
+          if (nonZero.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+              decoration: BoxDecoration(
+                color: tab.color.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _statCell("Latest",  latest > 0 ? "${fmt(latest)} $unit"  : "No data", tab.color),
+                  _statDivider(),
+                  _statCell("Average", "${fmt(avg)} $unit",    Colors.blueGrey),
+                  _statDivider(),
+                  _statCell("Min",     "${fmt(minVal)} $unit", Colors.green),
+                  _statDivider(),
+                  _statCell("Max",     "${fmt(maxVal)} $unit", Colors.orange),
+                ],
+              ),
+            ),
+          ],
+
+          // ── Written summary ───────────────────────────────────────────
+          const SizedBox(height: 14),
+          _buildWrittenSummary(
+            index: selectedIndex,
+            statusLabel: statusLabel,
+            statusColor: statusColor,
+          ),
+
+          // ── Data note ─────────────────────────────────────────────────
+          if (dataNotes[selectedIndex].isNotEmpty) ...[
             const SizedBox(height: 8),
-            Row(children: [
-              Container(width: 18, height: 2, color: Colors.green.withOpacity(0.6)),
-              const SizedBox(width: 6),
-              Text("Baseline HR (${_liveBaselineHR.toInt()} bpm · vitals_history)",
-                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.info_outline, size: 13, color: AppColors.textMuted),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  dataNotes[selectedIndex],
+                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                ),
+              ),
             ]),
           ],
-          if (selectedIndex == 3) ...[
-            const SizedBox(height: 8),
-            const Text("0 hrs = not recorded by wearable device",
-                style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
-          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statCell(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(value,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+        const SizedBox(height: 2),
+        Text(label,
+            style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+      ],
+    );
+  }
+
+  Widget _statDivider() =>
+      Container(width: 1, height: 28, color: Colors.grey.shade200);
+
+  // ── AI-powered written summary ──────────────────────────────────────────
+  Widget _buildWrittenSummary({
+    required int index,
+    required String statusLabel,
+    required Color statusColor,
+  }) {
+    final aiText  = _aiSummaries[index];
+    final loading = _aiGenerating && aiText == null;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: statusColor.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(
+              statusLabel == "Normal"
+                  ? Icons.check_circle_outline
+                  : statusLabel == "No Data"
+                      ? Icons.help_outline
+                      : Icons.warning_amber_outlined,
+              color: statusColor,
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Text("AI Health Insight",
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: statusColor)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.primarySoft,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text("Gemini AI",
+                  style: TextStyle(fontSize: 9, color: AppColors.primary, fontWeight: FontWeight.w600)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          if (loading)
+            const Row(children: [
+              SizedBox(width: 14, height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+              SizedBox(width: 8),
+              Text("Generating insight…",
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+            ])
+          else if (aiText != null && aiText.isNotEmpty)
+            Text(aiText,
+                style: const TextStyle(fontSize: 12, color: AppColors.textDark, height: 1.5))
+          else
+            const Text("Sync data to generate an AI insight.",
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
         ],
       ),
     );
@@ -810,15 +1167,21 @@ class _VitalsScreenState extends State<VitalsScreen> {
           showTitles: true,
           getTitlesWidget: (value, meta) {
             final i = value.toInt();
-            if (i >= 0 && i < timeLabels.length && i % 10 == 0) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(timeLabels[i], style: const TextStyle(fontSize: 8, color: Colors.black38)),
+            if (i >= 0 && i < timeLabels.length && i % 10 == 0 && i < timeLabels.length - 5) {
+              return Transform.rotate(
+                angle: -0.5,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    timeLabels[i],
+                    style: const TextStyle(fontSize: 7, color: Colors.black38),
+                  ),
+                ),
               );
             }
             return const SizedBox.shrink();
           },
-          reservedSize: 36,
+          reservedSize: 44,
         ),
       ),
       leftTitles: AxisTitles(sideTitles: SideTitles(
@@ -828,7 +1191,8 @@ class _VitalsScreenState extends State<VitalsScreen> {
             style: const TextStyle(fontSize: 10, color: Colors.black38)),
       )),
       topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      // Reserve 16px on the right so the last dot doesn't clip
+      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false, reservedSize: 16)),
     );
   }
 

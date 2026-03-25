@@ -12,6 +12,7 @@ class MedicationTrackerScreen extends StatefulWidget {
 
 class _MedicationTrackerScreenState extends State<MedicationTrackerScreen> {
   List<Map<String, dynamic>> _meds = [];
+  int? _patientId;
 
   // Form controllers
   final _nameCtrl = TextEditingController();
@@ -36,9 +37,13 @@ class _MedicationTrackerScreenState extends State<MedicationTrackerScreen> {
 
   Future<void> _loadMeds() async {
     final prefs = await SharedPreferences.getInstance();
+    final rawId = prefs.get("patient_id");
+    _patientId = int.tryParse(rawId?.toString() ?? '');
+    if (_patientId == null) return;
+
     final today = DateTime.now().toIso8601String().substring(0, 10);
-    final lastReset = prefs.getString("lastResetDate") ?? "";
-    final raw = prefs.getString("medications") ?? "[]";
+    final lastReset = prefs.getString("lastResetDate_$_patientId") ?? "";
+    final raw = prefs.getString("medications_$_patientId") ?? "[]";
     List<Map<String, dynamic>> meds =
         (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e)).toList();
 
@@ -46,16 +51,17 @@ class _MedicationTrackerScreenState extends State<MedicationTrackerScreen> {
       for (final m in meds) {
         m["takenToday"] = false;
       }
-      await prefs.setString("medications", jsonEncode(meds));
-      await prefs.setString("lastResetDate", today);
+      await prefs.setString("medications_$_patientId", jsonEncode(meds));
+      await prefs.setString("lastResetDate_$_patientId", today);
     }
 
     if (mounted) setState(() => _meds = meds);
   }
 
   Future<void> _saveMeds() async {
+    if (_patientId == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("medications", jsonEncode(_meds));
+    await prefs.setString("medications_$_patientId", jsonEncode(_meds));
   }
 
   Future<void> _addMed() async {

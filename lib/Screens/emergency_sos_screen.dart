@@ -15,6 +15,7 @@ class _EmergencySosScreenState extends State<EmergencySosScreen> {
   String _allergies = "";
   String _contactName = "";
   String _contactPhone = "";
+  int? _patientId;
 
   @override
   void initState() {
@@ -24,20 +25,23 @@ class _EmergencySosScreenState extends State<EmergencySosScreen> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    final rawId = prefs.get("patient_id");
+    _patientId = int.tryParse(rawId?.toString() ?? '');
     setState(() {
-      _bloodType = prefs.getString("emergency_blood_type") ?? "";
-      _allergies = prefs.getString("emergency_allergies") ?? "";
-      _contactName = prefs.getString("emergency_contact_name") ?? "";
-      _contactPhone = prefs.getString("emergency_contact_phone") ?? "";
+      _bloodType = prefs.getString("emergency_blood_type_$_patientId") ?? "";
+      _allergies = prefs.getString("emergency_allergies_$_patientId") ?? "";
+      _contactName = prefs.getString("emergency_contact_name_$_patientId") ?? "";
+      _contactPhone = prefs.getString("emergency_contact_phone_$_patientId") ?? "";
     });
   }
 
   Future<void> _save() async {
+    if (_patientId == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("emergency_blood_type", _bloodType);
-    await prefs.setString("emergency_allergies", _allergies);
-    await prefs.setString("emergency_contact_name", _contactName);
-    await prefs.setString("emergency_contact_phone", _contactPhone);
+    await prefs.setString("emergency_blood_type_$_patientId", _bloodType);
+    await prefs.setString("emergency_allergies_$_patientId", _allergies);
+    await prefs.setString("emergency_contact_name_$_patientId", _contactName);
+    await prefs.setString("emergency_contact_phone_$_patientId", _contactPhone);
   }
 
   void _editField(String title, String current, IconData icon, ValueChanged<String> onSave) {
